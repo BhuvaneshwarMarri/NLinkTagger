@@ -39,6 +39,7 @@ import com.smaarig.nlinktagger.ui.components.ManualAddLinkDialog
 import com.smaarig.nlinktagger.ui.mvi.NLinkEffect
 import com.smaarig.nlinktagger.ui.mvi.NLinkIntent
 import com.smaarig.nlinktagger.ui.mvi.NLinkViewModel
+import com.smaarig.nlinktagger.ui.screens.links.FilterScreen
 import com.smaarig.nlinktagger.ui.screens.links.LinksScreen
 import com.smaarig.nlinktagger.ui.screens.settings.SettingsScreen
 import com.smaarig.nlinktagger.ui.screens.tags.TagsScreen
@@ -117,11 +118,17 @@ fun MainScreen(viewModel: NLinkViewModel) {
     var showAddManualLinkDialog by remember { mutableStateOf(false) }
     var showAddTagDialog by remember { mutableStateOf(false) }
     var showSettings by remember { mutableStateOf(false) }
+    var showFilter by remember { mutableStateOf(false) }
 
     val isFunky = state.appTheme == AppTheme.FUNKY
 
     if (showSettings) {
         SettingsScreen(state, viewModel, onBack = { showSettings = false })
+        return
+    }
+
+    if (showFilter) {
+        FilterScreen(state, viewModel, onBack = { showFilter = false })
         return
     }
 
@@ -238,11 +245,15 @@ fun MainScreen(viewModel: NLinkViewModel) {
         Box(
             Modifier
                 .padding(padding)
-                .padding(bottom = 60.dp) // Ensure FAB doesn't cover content
                 .fillMaxSize()
         ) {
             if (selectedTab == 0) {
-                LinksScreen(state, viewModel, onNewTagClick = { showAddTagDialog = true })
+                LinksScreen(
+                    state = state, 
+                    viewModel = viewModel, 
+                    onFilterClick = { showFilter = true },
+                    onNewTagClick = { showAddTagDialog = true }
+                )
             } else {
                 TagsScreen(state.tags, viewModel)
             }

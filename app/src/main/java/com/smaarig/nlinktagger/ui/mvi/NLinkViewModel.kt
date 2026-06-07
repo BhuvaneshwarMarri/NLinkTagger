@@ -18,6 +18,38 @@ class NLinkViewModel(private val repository: NLinkRepository) : ViewModel() {
     private val _state = MutableStateFlow(NLinkState())
     val state: StateFlow<NLinkState> = _state.asStateFlow()
 
+    val filteredLinks: StateFlow<List<com.smaarig.nlinktagger.data.local.entities.LinkWithTags>> = _state
+        .map { s -> 
+            FilterParams(s.links, s.searchQuery, s.selectedFilterTagIds, s.sortOrder) 
+        }
+        .distinctUntilChanged()
+        .map { params ->
+            params.links.filter { linkWithTags ->
+                val matchesSearch = linkWithTags.link.name.contains(params.query, ignoreCase = true) ||
+                        linkWithTags.link.url.contains(params.query, ignoreCase = true)
+                
+                val matchesTags = params.filterTagIds.isEmpty() || 
+                        linkWithTags.tags.any { it.id in params.filterTagIds }
+                
+                matchesSearch && matchesTags
+            }.let { filtered ->
+                when (params.sortOrder) {
+                    SortOrder.NEWEST -> filtered.sortedByDescending { it.link.id }
+                    SortOrder.OLDEST -> filtered.sortedBy { it.link.id }
+                    SortOrder.NAME_ASC -> filtered.sortedBy { it.link.name.lowercase() }
+                    SortOrder.NAME_DESC -> filtered.sortedByDescending { it.link.name.lowercase() }
+                }
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private data class FilterParams(
+        val links: List<com.smaarig.nlinktagger.data.local.entities.LinkWithTags>,
+        val query: String,
+        val filterTagIds: Set<Long>,
+        val sortOrder: SortOrder
+    )
+
     private val _effects = MutableSharedFlow<NLinkEffect>()
     val effects: SharedFlow<NLinkEffect> = _effects.asSharedFlow()
 

@@ -19,24 +19,7 @@ data class NLinkState(
     val error: String? = null,
     val appTheme: AppTheme = AppTheme.MINIMAL,
     val sortOrder: SortOrder = SortOrder.NEWEST
-) {
-    val filteredLinks: List<LinkWithTags> = links.filter { linkWithTags ->
-        val matchesSearch = linkWithTags.link.name.contains(searchQuery, ignoreCase = true) ||
-                linkWithTags.link.url.contains(searchQuery, ignoreCase = true)
-        
-        val matchesTags = selectedFilterTagIds.isEmpty() || 
-                linkWithTags.tags.any { it.id in selectedFilterTagIds }
-        
-        matchesSearch && matchesTags
-    }.let { filtered ->
-        when (sortOrder) {
-            SortOrder.NEWEST -> filtered.sortedByDescending { it.link.id }
-            SortOrder.OLDEST -> filtered.sortedBy { it.link.id }
-            SortOrder.NAME_ASC -> filtered.sortedBy { it.link.name.lowercase() }
-            SortOrder.NAME_DESC -> filtered.sortedByDescending { it.link.name.lowercase() }
-        }
-    }
-}
+)
 
 sealed class NLinkIntent {
     data class AddTag(val name: String, val colorHex: String) : NLinkIntent()

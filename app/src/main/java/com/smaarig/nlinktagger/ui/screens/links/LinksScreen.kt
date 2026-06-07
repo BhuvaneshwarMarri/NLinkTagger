@@ -41,11 +41,13 @@ import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -68,13 +70,14 @@ import com.smaarig.nlinktagger.ui.mvi.NLinkViewModel
 import com.smaarig.nlinktagger.ui.theme.AppTheme
 
 @Composable
-fun LinksScreen(state: NLinkState, viewModel: NLinkViewModel, onNewTagClick: () -> Unit) {
+fun LinksScreen(state: NLinkState, viewModel: NLinkViewModel, onFilterClick: () -> Unit, onNewTagClick: () -> Unit) {
     val isFunky = state.appTheme == AppTheme.FUNKY
+    val filteredLinks by viewModel.filteredLinks.collectAsState()
 
     Column(Modifier.fillMaxSize()) {
-        // Search Bar & Sort
+        // Search Bar & Sort & Filter
         Row(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(Modifier.weight(1f)) {
@@ -132,6 +135,29 @@ fun LinksScreen(state: NLinkState, viewModel: NLinkViewModel, onNewTagClick: () 
             }
             
             Spacer(Modifier.width(8.dp))
+
+            // Filter Button
+            BadgedBox(
+                badge = {
+                    if (state.selectedFilterTagIds.isNotEmpty()) {
+                        Badge(
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary
+                        ) {
+                            Text(state.selectedFilterTagIds.size.toString())
+                        }
+                    }
+                }
+            ) {
+                IconButton(onClick = onFilterClick) {
+                    Icon(
+                        Icons.Default.FilterList, 
+                        contentDescription = "Filter",
+                        tint = if (isFunky) Color.Black else MaterialTheme.colorScheme.primary,
+                        modifier = if (isFunky) Modifier.size(32.dp) else Modifier.size(24.dp)
+                    )
+                }
+            }
             
             var showSortMenu by remember { mutableStateOf(false) }
             Box {
@@ -165,51 +191,41 @@ fun LinksScreen(state: NLinkState, viewModel: NLinkViewModel, onNewTagClick: () 
             }
         }
 
-        // Tag Filter Row
-        if (state.tags.isNotEmpty()) {
+        // Active Filter Chips (Scrollable Row)
+        if (state.selectedFilterTagIds.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                Text("FILTERS:", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                Spacer(Modifier.width(8.dp))
                 LazyRow(
                     modifier = Modifier.weight(1f),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    items(state.tags) { tag ->
-                        val isSelected = tag.id in state.selectedFilterTagIds
+                    items(state.tags.filter { it.id in state.selectedFilterTagIds }) { tag ->
                         val tagColor = Color(tag.colorHex.toColorInt())
                         val isTagColorLight = isColorLight(tagColor)
-                        FilterChip(
-                            selected = isSelected,
+                        AssistChip(
                             onClick = { viewModel.onIntent(NLinkIntent.ToggleTagFilter(tag.id)) },
-                            label = { Text(tag.name.uppercase(), style = MaterialTheme.typography.labelSmall) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = tagColor,
-                                selectedLabelColor = if (isTagColorLight) Color.Black else Color.White,
-                                labelColor = tagColor
+                            label = { Text(tag.name.uppercase(), fontSize = 10.sp) },
+                            trailingIcon = { Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(12.dp)) },
+                            shape = RoundedCornerShape(4.dp),
+                            colors = AssistChipDefaults.assistChipColors(
+                                containerColor = tagColor,
+                                labelColor = if (isTagColorLight) Color.Black else Color.White,
+                                trailingIconContentColor = if (isTagColorLight) Color.Black else Color.White
                             ),
-                            border = FilterChipDefaults.filterChipBorder(
-                                borderColor = tagColor,
-                                enabled = true,
-                                selected = isSelected
-                            ),
-                            shape = RoundedCornerShape(4.dp)
+                            border = null
                         )
-                    }
-                }
-                if (state.selectedFilterTagIds.isNotEmpty()) {
-                    IconButton(onClick = { 
-                        viewModel.onIntent(NLinkIntent.ClearTagFilters)
-                    }) {
-                        Icon(Icons.Default.ClearAll, contentDescription = "Clear Filters")
                     }
                 }
             }
         }
 
-        if (state.filteredLinks.isEmpty()) {
+        if (filteredLinks.isEmpty()) {
             Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Text("(NO LINKS MATCHED)", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.secondary)
             }
@@ -218,41 +234,26 @@ fun LinksScreen(state: NLinkState, viewModel: NLinkViewModel, onNewTagClick: () 
                 Modifier.weight(1f).fillMaxWidth(),
                 contentPadding = PaddingValues(bottom = 100.dp)
             ) {
-                items(state.filteredLinks, key = { it.link.id }) { linkWithTags ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = if (state.appTheme == AppTheme.FUNKY) {
-                            fadeIn() + slideInVertically(
-                                initialOffsetY = { it },
-                                animationSpec = spring(
-                                    dampingRatio = Spring.DampingRatioHighBouncy,
-                                    stiffness = Spring.StiffnessLow
-                                )
-                            )
-                        } else {
-                            fadeIn()
-                        }
-                    ) {
-                        var showEditDialog by remember { mutableStateOf(false) }
-                        
-                        if (showEditDialog) {
-                            ManualAddLinkDialog(
-                                onDismiss = { showEditDialog = false },
-                                tags = state.tags,
-                                onAdd = { name, url, tagIds ->
-                                    viewModel.onIntent(NLinkIntent.UpdateLink(linkWithTags.link.copy(name = name, url = url), tagIds))
-                                    showEditDialog = false
-                                },
-                                onNewTagClick = onNewTagClick,
-                                initialName = linkWithTags.link.name,
-                                initialUrl = linkWithTags.link.url,
-                                initialSelectedTagIds = linkWithTags.tags.map { it.id },
-                                title = "EDIT LINK"
-                            )
-                        }
-
-                        LinkItem(linkWithTags, viewModel, state.appTheme, onEditClick = { showEditDialog = true })
+                items(filteredLinks, key = { it.link.id }) { linkWithTags ->
+                    var showEditDialog by remember { mutableStateOf(false) }
+                    
+                    if (showEditDialog) {
+                        ManualAddLinkDialog(
+                            onDismiss = { showEditDialog = false },
+                            tags = state.tags,
+                            onAdd = { name, url, tagIds ->
+                                viewModel.onIntent(NLinkIntent.UpdateLink(linkWithTags.link.copy(name = name, url = url), tagIds))
+                                showEditDialog = false
+                            },
+                            onNewTagClick = onNewTagClick,
+                            initialName = linkWithTags.link.name,
+                            initialUrl = linkWithTags.link.url,
+                            initialSelectedTagIds = linkWithTags.tags.map { it.id },
+                            title = "EDIT LINK"
+                        )
                     }
+
+                    LinkItem(linkWithTags, viewModel, state.appTheme, onEditClick = { showEditDialog = true })
                 }
             }
         }

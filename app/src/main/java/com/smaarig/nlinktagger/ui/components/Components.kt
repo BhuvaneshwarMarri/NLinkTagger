@@ -1,13 +1,15 @@
 package com.smaarig.nlinktagger.ui.components
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +25,7 @@ import com.smaarig.nlinktagger.data.local.entities.TagEntity
 import com.smaarig.nlinktagger.ui.mvi.NLinkIntent
 import com.smaarig.nlinktagger.ui.mvi.NLinkViewModel
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ManualAddLinkDialog(
     onDismiss: () -> Unit, 
@@ -63,6 +66,42 @@ fun ManualAddLinkDialog(
                     shape = RoundedCornerShape(4.dp)
                 )
                 Spacer(Modifier.height(16.dp))
+                
+                // Selected Tags Display (with "wrong" button)
+                if (selectedTagIds.isNotEmpty()) {
+                    Text("SELECTED TAGS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                    FlowRow(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        selectedTagIds.forEach { tagId ->
+                            val tag = tags.find { it.id == tagId } ?: return@forEach
+                            val tagColor = Color(tag.colorHex.toColorInt())
+                            InputChip(
+                                selected = true,
+                                onClick = { selectedTagIds.remove(tagId) },
+                                label = { Text(tag.name.uppercase(), style = MaterialTheme.typography.labelSmall) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = InputChipDefaults.inputChipColors(
+                                    selectedContainerColor = tagColor,
+                                    selectedLabelColor = if (isColorLight(tagColor)) Color.Black else Color.White
+                                ),
+                                border = null,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                        }
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("SELECT TAGS", style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
@@ -70,42 +109,59 @@ fun ManualAddLinkDialog(
                         Text("+ NEW TAG", style = MaterialTheme.typography.labelSmall)
                     }
                 }
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp)
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+
+                var expanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(
+                    expanded = expanded,
+                    onExpandedChange = { expanded = !expanded },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    tags.forEach { tag ->
-                        val isSelected = tag.id in selectedTagIds
-                        Box(
-                            Modifier
-                                .background(
-                                    if (isSelected) Color(tag.colorHex.toColorInt()) else Color.Transparent,
-                                    RoundedCornerShape(4.dp)
-                                )
-                                .border(1.dp, Color(tag.colorHex.toColorInt()), RoundedCornerShape(4.dp))
-                                .clickable { 
-                                    if (isSelected) selectedTagIds.remove(tag.id) else selectedTagIds.add(tag.id)
-                                }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
-                        ) {
-                            val backgroundColor = if (isSelected) Color(tag.colorHex.toColorInt()) else Color.Transparent
-                            val isColorLight = isColorLight(backgroundColor)
-                            Text(
-                                tag.name.uppercase(),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isSelected) {
-                                    if (isColorLight) Color.Black else Color.White
-                                } else {
-                                    Color(tag.colorHex.toColorInt())
+                    OutlinedTextField(
+                        value = "",
+                        onValueChange = {},
+                        readOnly = true,
+                        placeholder = { Text("PICK A TAG...", style = MaterialTheme.typography.labelSmall) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true).fillMaxWidth(),
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expanded,
+                        onDismissRequest = { expanded = false }
+                    ) {
+                        tags.filter { it.id !in selectedTagIds }.forEach { tag ->
+                            val tagColor = Color(tag.colorHex.toColorInt())
+                            DropdownMenuItem(
+                                text = { 
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Box(
+                                            Modifier
+                                                .size(12.dp)
+                                                .background(tagColor, CircleShape)
+                                                .border(1.dp, MaterialTheme.colorScheme.outline, CircleShape)
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text(tag.name.uppercase(), style = MaterialTheme.typography.labelMedium)
+                                    }
                                 },
-                                fontWeight = FontWeight.Bold
+                                onClick = {
+                                    selectedTagIds.add(tag.id)
+                                    expanded = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                        if (tags.all { it.id in selectedTagIds }) {
+                            DropdownMenuItem(
+                                text = { Text("NO MORE TAGS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary) },
+                                onClick = { expanded = false },
+                                enabled = false
                             )
                         }
                     }
                 }
+
                 Spacer(Modifier.height(24.dp))
                 val isValidUrl = url.startsWith("http://") || url.startsWith("https://")
                 if (url.isNotBlank() && !isValidUrl) {
@@ -222,6 +278,7 @@ fun AddTagDialog(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun AddLinkPopup(url: String, tags: List<TagEntity>, viewModel: NLinkViewModel, onNewTagClick: () -> Unit) {
     var name by remember { mutableStateOf("") }
@@ -246,6 +303,42 @@ fun AddLinkPopup(url: String, tags: List<TagEntity>, viewModel: NLinkViewModel, 
                     shape = RoundedCornerShape(4.dp)
                 )
                 Spacer(Modifier.height(16.dp))
+                
+                // Selected Tags Display (with "wrong" button)
+                if (selectedTagIds.isNotEmpty()) {
+                    Text("SELECTED TAGS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary)
+                    FlowRow(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        selectedTagIds.forEach { tagId ->
+                            val tag = tags.find { it.id == tagId } ?: return@forEach
+                            val tagColor = Color(tag.colorHex.toColorInt())
+                            InputChip(
+                                selected = true,
+                                onClick = { selectedTagIds.remove(tagId) },
+                                label = { Text(tag.name.uppercase(), style = MaterialTheme.typography.labelSmall) },
+                                trailingIcon = {
+                                    Icon(
+                                        Icons.Default.Close,
+                                        contentDescription = "Remove",
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = InputChipDefaults.inputChipColors(
+                                    selectedContainerColor = tagColor,
+                                    selectedLabelColor = if (isColorLight(tagColor)) Color.Black else Color.White
+                                ),
+                                border = null,
+                                shape = RoundedCornerShape(4.dp)
+                            )
+                        }
+                    }
+                }
+
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("SELECT TAGS", style = MaterialTheme.typography.labelMedium)
                     Spacer(Modifier.weight(1f))
@@ -253,41 +346,45 @@ fun AddLinkPopup(url: String, tags: List<TagEntity>, viewModel: NLinkViewModel, 
                         Text("+ NEW TAG", style = MaterialTheme.typography.labelSmall)
                     }
                 }
+                
                 if (tags.isEmpty()) {
                     Text("(NO TAGS AVAILABLE - CREATE ONE FIRST)", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.error)
                 } else {
-                    Row(
-                        Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 8.dp)
-                            .horizontalScroll(rememberScrollState()),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    var expanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(
+                        expanded = expanded,
+                        onExpandedChange = { expanded = !expanded },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        tags.forEach { tag ->
-                            val isSelected = tag.id in selectedTagIds
-                            Box(
-                                Modifier
-                                    .background(
-                                        if (isSelected) Color(tag.colorHex.toColorInt()) else Color.Transparent,
-                                        RoundedCornerShape(4.dp)
-                                    )
-                                    .border(1.dp, Color(tag.colorHex.toColorInt()), RoundedCornerShape(4.dp))
-                                    .clickable { 
-                                        if (isSelected) selectedTagIds.remove(tag.id) else selectedTagIds.add(tag.id)
-                                    }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp)
-                            ) {
-                                val backgroundColor = if (isSelected) Color(tag.colorHex.toColorInt()) else Color.Transparent
-                                val isColorLight = isColorLight(backgroundColor)
-                                Text(
-                                    tag.name.uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isSelected) {
-                                        if (isColorLight) Color.Black else Color.White
-                                    } else {
-                                        Color(tag.colorHex.toColorInt())
+                        OutlinedTextField(
+                            value = "",
+                            onValueChange = {},
+                            readOnly = true,
+                            placeholder = { Text("PICK A TAG...", style = MaterialTheme.typography.labelSmall) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryEditable, true).fillMaxWidth(),
+                            shape = RoundedCornerShape(4.dp)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expanded,
+                            onDismissRequest = { expanded = false }
+                        ) {
+                            tags.filter { it.id !in selectedTagIds }.forEach { tag ->
+                                DropdownMenuItem(
+                                    text = { Text(tag.name.uppercase(), style = MaterialTheme.typography.labelMedium) },
+                                    onClick = {
+                                        selectedTagIds.add(tag.id)
+                                        expanded = false
                                     },
-                                    fontWeight = FontWeight.Bold
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
+                            if (tags.all { it.id in selectedTagIds }) {
+                                DropdownMenuItem(
+                                    text = { Text("NO MORE TAGS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.secondary) },
+                                    onClick = { expanded = false },
+                                    enabled = false
                                 )
                             }
                         }
